@@ -1,0 +1,121 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Diagnostics;
+using System.Runtime.InteropServices;
+using Excel = Microsoft.Office.Interop.Excel;
+
+namespace Sandbox
+{
+    class CJ
+    {
+        static void Main(string[] args)
+        {
+            ReadExcel();
+            ReadLog();
+            Console.ReadLine();
+        }
+
+        public static void ReadExcel()
+        {
+            try
+            {
+                //Pfad neben der .exe ermitteln für die Excel-Datei
+                string xlFilePath = System.Reflection.Assembly.GetExecutingAssembly().Location;
+                string workPath = Path.GetDirectoryName(xlFilePath);
+                string xlsxFilePath = Path.Combine(workPath, "WHITE_BOX_TEST.xlsx");
+
+                //COM Objekte erzeugen
+                Excel.Application xlApp = new Excel.Application();
+                Excel.Workbook xlWorkbook = xlApp.Workbooks.Open(xlsxFilePath);
+                Excel.Worksheet xlWorksheet = xlWorkbook.Sheets[1];
+                Excel.Range xlRange = xlWorksheet.UsedRange;
+
+                //Länge der benutzen Zeilen (und Spalten) ermitteln
+                int rowCount = xlRange.Rows.Count;
+                //int colCount = xlRange.Columns.Count;
+
+                var list = new List<String>();
+
+                //Durch die Tabelle iterieren und Werte ausgeben. Excel startet wegen Überschriften bei 1/2, nicht 0/0
+                for (int i = 2; i <= rowCount; i++)
+                {
+                    /*
+                    var modelnameVar = (xlRange.Cells[i, 1] as Excel.Range).Value;
+                    string modelname = Convert.ToString(modelnameVar);
+                    list.Add(modelname);
+                    */
+
+                    var modelpfadVar = (xlRange.Cells[i, 2] as Excel.Range).Value;
+                    string modelpfad = Convert.ToString(modelpfadVar);
+                    list.Add(modelpfad);
+                    string sourceLoc = modelpfad;
+
+                    var zielpfadVar = (xlRange.Cells[i, 3] as Excel.Range).Value;
+                    string zielpfad = Convert.ToString(zielpfadVar);
+                    list.Add(zielpfad);
+                    string destLoc = zielpfad;
+
+                    var dateienVar = (xlRange.Cells[i, 4] as Excel.Range).Value;
+                    string dateien = Convert.ToString(dateienVar);
+                    string[] datSplit = dateien.Split('§');
+                    List<string> list2 = new List<string>();
+                    list2.AddRange(datSplit);
+
+                    Copy(sourceLoc, destLoc, list2);
+                }
+
+                Muellabfuhr(xlApp, xlWorkbook, xlWorksheet, xlRange);
+            }
+
+            catch (IOException ex)
+            {
+                Console.WriteLine(ex.Message);
+            }
+
+        }
+
+        private static void Copy(string sourceLoc, string destLoc, List<string> list2)
+        {
+            //Pro Datei 1x Kopiervorgang durchführen
+            list2.ForEach(delegate (string datei)
+            {
+                try
+                {
+                    Process p = new Process();
+                    p.StartInfo.Arguments = string.Format("/C Robocopy /PF /LOG:file.txt {0} {1} {2} ", sourceLoc, destLoc, datei);
+                    p.StartInfo.FileName = "CMD.EXE";
+                    p.StartInfo.CreateNoWindow = true;
+                    p.StartInfo.UseShellExecute = false;
+                    p.Start();
+                    p.WaitForExit();
+                }
+                catch (Exception ex)
+                {
+                    Console.Write(ex);
+                    Console.ReadLine();
+                }
+            });
+        }
+
+        private static void Muellabfuhr(Excel.Application xlApp, Excel.Workbook xlWorkbook, Excel.Worksheet xlWorksheet, Excel.Range xlRange)
+        {
+            xlApp.Quit();
+            xlWorkbook.Close();
+            Marshal.ReleaseComObject(xlRange);
+            Marshal.ReleaseComObject(xlWorksheet);
+            Marshal.ReleaseComObject(xlWorkbook);
+            Marshal.ReleaseComObject(xlApp);
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+        }
+
+        private static void ReadLog()
+        {
+            string log = File.ReadAllText(@"file.txt");
+            Console.WriteLine("{0}", log);
+            Console.WriteLine("Press any key to exit.");
+            Console.ReadKey();
+        }
+    }
+}
