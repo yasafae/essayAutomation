@@ -13,7 +13,8 @@ namespace Sandbox
         {
             ReadExcel();
             ReadLog();
-            Console.ReadLine();
+            //File.WriteAllText("log_cj.txt", String.Empty); //Clear logfile nach erfolgreichem Kopiervorgang
+            //Console.ReadLine();
         }
 
         public static void ReadExcel()
@@ -21,13 +22,13 @@ namespace Sandbox
             try
             {
                 //Pfad neben der .exe ermitteln für die Excel-Datei
-                string xlFilePath = System.Reflection.Assembly.GetExecutingAssembly().Location;
-                string workPath = Path.GetDirectoryName(xlFilePath);
-                string xlsxFilePath = Path.Combine(workPath, "WHITE_BOX_TEST.xlsx");
+                string exeFile = System.Reflection.Assembly.GetExecutingAssembly().Location;
+                string exePath = Path.GetDirectoryName(exeFile);
+                string xlFilePath = Path.Combine(exePath, "WHITE_BOX_TEST.xlsx");
 
                 //COM Objekte erzeugen
                 Excel.Application xlApp = new Excel.Application();
-                Excel.Workbook xlWorkbook = xlApp.Workbooks.Open(xlsxFilePath);
+                Excel.Workbook xlWorkbook = xlApp.Workbooks.Open(xlFilePath);
                 Excel.Worksheet xlWorksheet = xlWorkbook.Sheets[1];
                 Excel.Range xlRange = xlWorksheet.UsedRange;
 
@@ -58,11 +59,13 @@ namespace Sandbox
 
                     var dateienVar = (xlRange.Cells[i, 4] as Excel.Range).Value;
                     string dateien = Convert.ToString(dateienVar);
-                    string[] datSplit = dateien.Split('§');
+                    string[] datSplit = dateien.Split(',');
                     List<string> list2 = new List<string>();
                     list2.AddRange(datSplit);
 
                     Copy(sourceLoc, destLoc, list2);
+                    list.Clear();
+                    list2.Clear();
                 }
 
                 Muellabfuhr(xlApp, xlWorkbook, xlWorksheet, xlRange);
@@ -71,6 +74,7 @@ namespace Sandbox
             catch (IOException ex)
             {
                 Console.WriteLine(ex.Message);
+                Console.ReadLine();
             }
 
         }
@@ -83,12 +87,16 @@ namespace Sandbox
                 try
                 {
                     Process p = new Process();
-                    p.StartInfo.Arguments = string.Format("/C Robocopy /PF /LOG:file.txt {0} {1} {2} ", sourceLoc, destLoc, datei);
+                    p.StartInfo.Arguments = string.Format("/C Robocopy /Z /LOG+:log_cj.txt {0} {1} {2} ", sourceLoc, destLoc, datei);
                     p.StartInfo.FileName = "CMD.EXE";
                     p.StartInfo.CreateNoWindow = true;
                     p.StartInfo.UseShellExecute = false;
                     p.Start();
                     p.WaitForExit();
+                    //p.Dispose();
+                    //p.Kill();
+                    //GC.Collect();
+                    //GC.WaitForPendingFinalizers();
                 }
                 catch (Exception ex)
                 {
@@ -100,22 +108,45 @@ namespace Sandbox
 
         private static void Muellabfuhr(Excel.Application xlApp, Excel.Workbook xlWorkbook, Excel.Worksheet xlWorksheet, Excel.Range xlRange)
         {
-            xlApp.Quit();
-            xlWorkbook.Close();
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
             Marshal.ReleaseComObject(xlRange);
             Marshal.ReleaseComObject(xlWorksheet);
+            xlWorkbook.Close(Type.Missing, Type.Missing, Type.Missing);
             Marshal.ReleaseComObject(xlWorkbook);
+            xlApp.Quit();
             Marshal.ReleaseComObject(xlApp);
+            xlApp = null;
             GC.Collect();
             GC.WaitForPendingFinalizers();
         }
 
         private static void ReadLog()
         {
-            string log = File.ReadAllText(@"file.txt");
-            Console.WriteLine("{0}", log);
-            Console.WriteLine("Press any key to exit.");
-            Console.ReadKey();
+            try
+            {
+                string exeFile = System.Reflection.Assembly.GetExecutingAssembly().Location;
+                string exePath = Path.GetDirectoryName(exeFile);
+                string logFilePath = Path.Combine(exePath, "log_cj.txt");
+                Process pp = new Process();
+                pp.EnableRaisingEvents = false;
+                pp.StartInfo.FileName = logFilePath;
+                pp.Start();
+                pp.Dispose();
+                //File.Open(txtxFilePath)
+                //string log = File.ReadAllText("log_cj.txt");
+                //Console.WriteLine(log);
+                //Console.WriteLine("Press any key to exit.");
+                //Console.ReadKey();
+                //File.WriteAllText("file.txt", String.Empty);
+                GC.Collect();
+                GC.WaitForPendingFinalizers();
+            }
+            catch (Exception ex)
+            {
+                Console.Write(ex);
+                Console.ReadLine();
+            }
         }
     }
 }
